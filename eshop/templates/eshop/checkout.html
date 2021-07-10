@@ -1,0 +1,198 @@
+{% extends 'eshop/main.html' %}
+{% load static %}
+{% block content %}
+<div class="row">
+	<div class="col-lg-6">
+		<div class="box-element" id="form-wrapper">
+            <form id="form">
+                <div id="user-info">
+                    <div class="form-field">
+                        <input required class="form-control" type="text" name="firstname" placeholder="Nombre..">
+                    </div>
+                    <div class="form-field">
+                        <input required class="form-control" type="text" name="lastname" placeholder="Apellido..">
+                    </div>
+                    <div class="form-field">
+                        <input required class="form-control" type="email" name="email" placeholder="Email..">
+                    </div>
+                </div>
+                
+                <div id="shipping-info">
+                    <hr>
+                    <p>Informacio de Compra:</p>
+                    <hr>
+                    <div class="form-field">
+                        <input class="form-control" type="text" name="address" placeholder="Direccion..">
+                    </div>
+                    <div class="form-field">
+                        <input class="form-control" type="text" name="city" placeholder="Ciudad..">
+                    </div>
+                    <div class="form-field">
+                        <input class="form-control" type="text" name="state" placeholder="Estado..">
+                    </div>
+                    <div class="form-field">
+                        <input class="form-control" type="text" name="zipcode" placeholder="CP..">
+                    </div>
+                </div>
+                <hr>
+                <input id="form-button" class="btn btn-success btn-block" type="submit" value="Continuar">
+            </form>
+
+            
+
+		</div>
+
+        <div class="box-element hidden" id="payment-info">
+                <small>Pagar con Paypal</small>
+                <div id="paypal-button-container"></div>
+        </div>
+		
+	</div>
+
+	<div class="col-lg-6">
+		<div class="box-element">
+            <a  class="btn btn-outline-dark" href="{% url 'cart' %}">&#x2190; Regresar al Carrito</a>
+	<hr>
+	<h3>Resumen de Pedido</h3>
+	<hr>
+    {% for item in items %}
+	<div class="cart-row">
+		<div style="flex:2"><img class="row-image" src="{{item.product.imageURL}}"></div>
+		<div style="flex:2"><p>{{item.product.name}}</p></div>
+		<div style="flex:1"><p>${{item.product.price}}</p></div>
+		<div style="flex:1"><p>{{item.quantity}}</p></div>
+	</div>
+    {% endfor %}
+	<h5>Items:   {{order.get_cart_items}}</h5>
+	<h5>Total:   ${{order.get_cart_total|floatformat:2}}</h5>
+
+		</div>
+	</div>
+</div>
+
+<script src="https://www.paypal.com/sdk/js?client-id=AUTco5tym3tyODDhGweGqGjYV7YB42TJiKdGbBRSPWKWOi7HuOpEdoN8GonuiiY8_rr4M0QHUX7h26vp&currency=USD&disable-funding=credit"></script>
+
+    <script>
+        let total = '{{order.get_cart_total}}'
+        // Render the PayPal button into #paypal-button-container
+        // Renderiza el Boton Pay[a; dentro del contenedor #paypal-button-container
+        paypal.Buttons({
+
+            style: {
+                color: 'blue',
+                shape: 'rect'
+
+            },
+
+            // Establece la Transacion
+            createOrder: function(data, actions) {
+                return actions.order.create({
+                    purchase_units: [{
+                        amount: {
+                            value: parseFloat(total).toFixed(2)
+                        }
+                    }]
+                });
+            },
+
+            // Finaliza la transaccion
+            onApprove: function(data, actions) {
+                return actions.order.capture().then(function(details) {
+                    // Show a success message to the buyer
+                    submitFormData()
+                    //alert('Transaction completed by ' + details.payer.name.given_name + '!');
+                });
+            }
+
+
+        }).render('#paypal-button-container');
+    </script>
+
+<script type="text/javascript">
+let shipping = '{{order.shipping}}'
+
+
+if (shipping == 'False'){
+    document.getElementById('shipping-info').innerHTML = ''
+}
+
+if (user != 'AnonymousUser'){
+    document.getElementById('user-info').innerHTML = ''
+}
+
+if (shipping == 'False' && user != 'AnonymousUser'){
+    //Hide entire form if user is loggged in and shipping is false
+    document.getElementById('form-wrapper').classList.add("hidden");
+    //Show payment if logged in user wants to buuy an item that does require shippping
+    document.getElementById('payment-info').classList.remove("hidden");
+}
+
+let form = document.getElementById('form')
+form.addEventListener('submit', function(e){
+    e.preventDefault()
+    console.log('Form Submitted...')
+    document.getElementById('form-button').classList.add("hidden");
+    document.getElementById('payment-info').classList.remove("hidden");
+})
+/*
+document.getElementById('make-payment').addEventListener('click', function(e){
+    submitFormData()
+})*/
+
+function submitFormData(){
+    console.log('Payment button clicked')
+
+    let userFormData = {
+        'firstname':null,
+        'lastname':null,
+        'email':null,
+        'total':total,
+    }
+
+    let shippingInfo = {
+        'address':null,
+        'city':null,
+        'state':null,
+        'zipcode':null,
+    }
+
+    if (shipping != 'False'){
+    shippingInfo.address = form.address.value
+    shippingInfo.city = form.city.value
+    shippingInfo.state = form.state.value
+    shippingInfo.zipcode = form.zipcode.value
+    }  
+
+    if (user == 'AnonymousUser'){
+    userFormData.firstname = form.firstname.value
+    userFormData.lastname = form.lastname.value
+    userFormData.email = form.email.value
+    }
+
+    const url = '/processorder/'
+    
+    fetch(url, {
+        method:'POST',
+        headers:{
+            'Content-Type':'application/json',
+            'X-CSRFToken':csrftoken,
+        },
+        body:JSON.stringify({'form': userFormData, 'shipping':shippingInfo}),
+    })
+    .then((response) => {
+        return response.json()
+    })
+    .then((data) => {
+        console.log('Success', data)
+        alert('Transaction completed');
+        cart = {}
+        document.cookie = 'cart=' + JSON.stringify(cart) + ";domain=;path=/"
+        window.location.href = "{% url 'store' %}"
+    })
+
+    console.log('Shipping Info:', shippingInfo)
+    console.log('User Info:', userFormData)
+
+}
+</script>
+{% endblock content %}
